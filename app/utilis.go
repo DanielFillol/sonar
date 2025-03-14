@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"github.com/joho/godotenv"
 	"log"
 	"os"
@@ -75,6 +76,9 @@ func finalAnswer(llm, system, field, authors, quotes, linkQuotes, laws, linkLaws
 	if llm == "deepseek" {
 		specialist, err := deepseek.Search(system, specialistInput, "deepseek-reasoner")
 		if err != nil {
+
+			fmt.Println(specialistInput)
+
 			return "", errors.New("Erro ao processar a resposta final:" + err.Error())
 		}
 
@@ -103,16 +107,16 @@ func finalAnswer(llm, system, field, authors, quotes, linkQuotes, laws, linkLaws
 //   - deepseek
 //   - gpt-mini
 //   - gpt-full
-func GetPromptResponse(llm, prompt string) error {
+func GetPromptResponse(llm, prompt string) (*string, error) {
 	err := populateVars()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Verifies if the prompt is eligible for case law search
 	relevant, err := juit.ShouldCallJurisprudencia(gptRelevantCaseLaw, prompt)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Get Relevant Case Law
@@ -121,54 +125,54 @@ func GetPromptResponse(llm, prompt string) error {
 	if relevant {
 		promptJuris, err = juit.CreateQueryForJurisprudencia(gptSimplePrompt, prompt)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		juris, err = juit.CallAPIjurisprudencia(*promptJuris)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	// Classify the legal field of the prompt.
 	field, err := gpt.ClassifyLawField(gptClassifier, prompt)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Get the main doctrinal experts for the classified legal field.
 	authors, err := gpt.GetRelevantAuthors(gptAuthors, *field)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Search for relevant citations from the doctrinal experts.
 	if authors == nil || promptJuris == nil {
-		return errors.New("autores não foram localizados ou prompt para API de jurisprudência não foi localizado")
+		return nil, errors.New("autores não foram localizados ou prompt para API de jurisprudência não foi localizado")
 	}
 
 	doctrines, err := perplexity.SearchForQuotes(perplexitySearcher, *field, *authors, *promptJuris, prompt)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Search for relevant laws in official sites
 	laws, err := perplexity.SearchForLaws(perplexityLaw, *field, prompt, *promptJuris)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Structure the final answer by integrating all the gathered information.
 	answer, err := finalAnswer(llm, gptSpecialist, *field, *authors, doctrines.Response, doctrines.Links, laws.Response, laws.Links, prompt, *juris)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = createFile(answer)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	log.Println("A resposta foi salva no arquivo resposta.md")
-	return nil
+	return &answer, nil
 }

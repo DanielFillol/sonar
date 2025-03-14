@@ -11,7 +11,7 @@ import (
 
 var (
 	// The original user prompt.
-	prompt = "meu voo da latam atrasou por 4 horas. tenho alguma direito?"
+	prompt = ""
 )
 
 func main() {
@@ -26,7 +26,7 @@ func main() {
 	start := time.Now()
 
 	// llm pode ser "deepseek", "gpt-mini" ou "gpt-full"
-	err := app.GetPromptResponse("deepseek", prompt)
+	_, err := app.GetPromptResponse("gpt-full", prompt)
 	if err != nil {
 		log.Fatal(err)
 	}
