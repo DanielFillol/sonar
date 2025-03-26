@@ -10,6 +10,8 @@ import (
 	"sonar/app/gpt"
 	"sonar/app/juit"
 	"sonar/app/perplexity"
+	"strings"
+	"time"
 )
 
 var (
@@ -62,7 +64,7 @@ func createFile(content string) error {
 	return nil
 }
 
-func finalAnswer(llm, system, field, authors, quotes, linkQuotes, laws, linkLaws, prompt, juris string) (string, error) {
+func finalAnswer(llm, system, field, authors, quotes, linkQuotes, laws, linkLaws, prompt, juris string, stream bool) (string, error) {
 	log.Println("Gerando texto final...")
 	specialistInput := "O ramo do direito é:\n" + field +
 		"\nOs doutrinadores relevantes são:\n" + authors +
@@ -73,12 +75,11 @@ func finalAnswer(llm, system, field, authors, quotes, linkQuotes, laws, linkLaws
 		"\nO prompt original do usuário é:\n" + prompt +
 		"\nAs Jurisprudências retornadas são:\n" + juris
 
+	var responseBuilder strings.Builder
+
 	if llm == "deepseek" {
 		specialist, err := deepseek.Search(system, specialistInput, "deepseek-reasoner")
 		if err != nil {
-
-			fmt.Println(specialistInput)
-
 			return "", errors.New("Erro ao processar a resposta final:" + err.Error())
 		}
 
@@ -91,12 +92,32 @@ func finalAnswer(llm, system, field, authors, quotes, linkQuotes, laws, linkLaws
 
 		return specialist.Choices[0].Message.Content, nil
 	} else if llm == "gpt-full" {
-		specialist, err := gpt.Search(system, specialistInput, "chatgpt-4o-latest")
-		if err != nil {
-			return "", errors.New("Erro ao processar a resposta final:" + err.Error())
+		if stream {
+			fmt.Println("\n\033[1;36m[RESPOSTA GERADA]\033[0m\n")
+
+			err := gpt.StreamSearch(
+				system,
+				specialistInput,
+				"gpt-4-1106-preview", // Modelo que suporta streaming
+				func(content string) {
+					fmt.Print(content)
+					responseBuilder.WriteString(content)
+				},
+			)
+			if err != nil {
+				return "", errors.New("Erro ao processar a resposta final:" + err.Error())
+			}
+			fmt.Println("\n\033[1;36m----------------------------------------\033[0m")
+			return responseBuilder.String(), err
+		} else {
+			specialist, err := gpt.Search(system, specialistInput, "chatgpt-4o-latest")
+			if err != nil {
+				return "", errors.New("Erro ao processar a resposta final:" + err.Error())
+			}
+
+			return specialist.Choices[0].Message.Content, nil
 		}
 
-		return specialist.Choices[0].Message.Content, nil
 	} else {
 		return "", errors.New("Erro ao processar a resposta final:" + llm)
 	}
@@ -163,10 +184,17 @@ func GetPromptResponse(llm, prompt string) (*string, error) {
 	}
 
 	// Structure the final answer by integrating all the gathered information.
-	answer, err := finalAnswer(llm, gptSpecialist, *field, *authors, doctrines.Response, doctrines.Links, laws.Response, laws.Links, prompt, *juris)
+	answer, err := finalAnswer(llm, gptSpecialist, *field, *authors, doctrines.Response, doctrines.Links, laws.Response, laws.Links, prompt, *juris, false)
 	if err != nil {
 		return nil, err
 	}
+	// Exibe a resposta de forma streamada
+	fmt.Println("\n\033[1;36m[RESPOSTA GERADA]\033[0m\n")
+	for _, line := range strings.Split(answer, "\n") {
+		fmt.Print(line + "\n")
+		time.Sleep(200 * time.Millisecond) // Ajuste o delay conforme necessário
+	}
+	fmt.Println("\n\033[1;36m----------------------------------------\033[0m")
 
 	err = createFile(answer)
 	if err != nil {
