@@ -26,10 +26,11 @@ func main() {
 	start := time.Now()
 
 	// llm pode ser "deepseek", "gpt-mini" ou "gpt-full"
-	_, err := app.GetPromptResponse("gpt-full", prompt)
+	_, err := app.GetPromptResponse("deepseek", prompt)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	fmt.Println(time.Since(start))
+
 }
