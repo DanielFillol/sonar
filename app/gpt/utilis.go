@@ -2,6 +2,20 @@ package gpt
 
 import "log"
 
+type OpenAIStreamResponse struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int64  `json:"created"`
+	Model   string `json:"model"`
+	Choices []struct {
+		Delta struct {
+			Content string `json:"content"`
+		} `json:"delta"`
+		Index        int    `json:"index"`
+		FinishReason string `json:"finish_reason"`
+	} `json:"choices"`
+}
+
 // OpenAIRequest represents the payload sent to the OpenAI API for chat completions.
 type OpenAIRequest struct {
 	// Model specifies the identifier of the model to use for generating the completion.
@@ -11,6 +25,9 @@ type OpenAIRequest struct {
 	// Messages is an array of message objects that constitute the conversation history.
 	// Each message should include a role ("system", "user", or "assistant") and content.
 	Messages []Message `json:"messages"`
+
+	// Stream is a bool object that defines if the response should be send in chunks or not
+	Stream bool `json:"stream"`
 }
 
 func NewGPTPayload() *OpenAIRequest {
